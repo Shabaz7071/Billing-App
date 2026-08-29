@@ -370,25 +370,33 @@
         }
 
         // Helper function to prepare the canvas safely without clipping
+        // Helper function to prepare the canvas safely without clipping
         async function getSafeCanvas() {
             const invoice = document.getElementById('invoice-preview');
-            const tableContainer = invoice.querySelector('.overflow-x-auto');
             
-            // 1. Temporarily remove clipping classes before capture
+            // Store original inline styles so we can restore them
+            const originalWidth = invoice.style.width;
+            const originalMaxWidth = invoice.style.maxWidth;
+            
+            // 1. Temporarily remove clipping classes 
             invoice.classList.remove('shadow-2xl', 'overflow-hidden');
-            if (tableContainer) tableContainer.classList.remove('overflow-x-auto');
+            
+            // Force a fixed wide width so the table doesn't squish or cut off on mobile screens
+            invoice.style.width = '800px';
+            invoice.style.maxWidth = 'none';
 
             // 2. Generate Canvas with High Scale
             const canvas = await html2canvas(invoice, { 
-                scale: 3, // High-res anti-blur
+                scale: 3, 
                 useCORS: true, 
                 backgroundColor: '#ffffff',
-                windowWidth: invoice.scrollWidth // Force full width capture
+                windowWidth: 800 // Force html2canvas to render as if on a wider monitor
             });
 
-            // 3. Restore clipping classes after capture
+            // 3. Restore the original responsive styles immediately after capture
+            invoice.style.width = originalWidth;
+            invoice.style.maxWidth = originalMaxWidth;
             invoice.classList.add('shadow-2xl', 'overflow-hidden');
-            if (tableContainer) tableContainer.classList.add('overflow-x-auto');
 
             return canvas;
         }
