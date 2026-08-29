@@ -261,8 +261,7 @@
 
         </div>
     </div>
-
-    <script>
+<script>
         // Set jsPDF
         window.jsPDF = window.jspdf.jsPDF;
 
@@ -299,51 +298,38 @@
             return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         };
 
+        // Missing Generate Bill Function
         function generateBill() {
-            // 1. Validate Purchaser Data
-            const purchaser = document.getElementById('purchaser').value.trim();
-            if(!purchaser) {
-                alert("Please enter the Purchaser Name before generating the bill.");
-                document.getElementById('purchaser').focus();
-                return;
-            }
-
-            // Generate Random Invoice Number (for visual realism)
-            const randomInvNum = Math.floor(10000 + Math.random() * 90000);
-            document.getElementById('inv-num').innerText = randomInvNum;
-
-            // Format Date
-            const today = new Date();
-            const dateOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-            document.getElementById('date-display').innerText = today.toLocaleDateString('en-IN', dateOptions);
-            
+            const purchaser = document.getElementById('purchaser').value || 'Cash / Walk-in';
             document.getElementById('preview-name').innerText = purchaser;
+            
+            // Randomize Invoice Number and Date
+            document.getElementById('inv-num').innerText = Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('date-display').innerText = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
 
-            // 2. Process all Items
-            const itemRows = document.querySelectorAll('.item-row');
+            const items = document.querySelectorAll('.item-row');
             const previewItemsBody = document.getElementById('preview-items-body');
-            previewItemsBody.innerHTML = ''; 
+            previewItemsBody.innerHTML = '';
             
             let totalItemsCost = 0;
             let hasValidItems = false;
 
-            itemRows.forEach(row => {
-                const name = row.querySelector('.item-name').value.trim();
-                const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+            items.forEach(item => {
+                const name = item.querySelector('.item-name').value || 'Item';
+                const qty = parseFloat(item.querySelector('.item-qty').value) || 0;
+                const price = parseFloat(item.querySelector('.item-price').value) || 0;
 
-                if (name || (qty > 0 && price > 0)) {
+                if (qty > 0 && price > 0) {
                     hasValidItems = true;
-                    const rowTotal = qty * price;
-                    totalItemsCost += rowTotal;
+                    const total = qty * price;
+                    totalItemsCost += total;
 
                     const tr = document.createElement('tr');
-                    tr.className = "hover:bg-slate-50/50 transition-colors";
                     tr.innerHTML = `
-                        <td class="py-4 px-5 border-b border-slate-100 text-slate-800 font-medium">${name || 'Unnamed Item'}</td>
-                        <td class="py-4 px-5 border-b border-slate-100 text-slate-600 text-center">${qty}</td>
-                        <td class="py-4 px-5 border-b border-slate-100 text-slate-600 text-right">₹${formatMoney(price)}</td>
-                        <td class="py-4 px-5 border-b border-slate-100 text-slate-800 text-right font-semibold">₹${formatMoney(rowTotal)}</td>
+                        <td class="py-4 px-5 text-slate-800 font-medium">${name}</td>
+                        <td class="py-4 px-5 text-slate-600 text-center">${qty}</td>
+                        <td class="py-4 px-5 text-slate-600 text-right">₹${formatMoney(price)}</td>
+                        <td class="py-4 px-5 text-slate-800 text-right font-bold">₹${formatMoney(total)}</td>
                     `;
                     previewItemsBody.appendChild(tr);
                 }
@@ -354,7 +340,7 @@
                 return;
             }
 
-            // 3. Process Additional Charges
+            // Process Additional Charges
             const chargeType = document.getElementById('chargeType').value;
             const chargeAmount = parseFloat(document.getElementById('chargeAmount').value) || 0;
             const chargeRow = document.getElementById('preview-charge-row');
@@ -367,19 +353,15 @@
                 chargeRow.classList.add('hidden');
             }
 
-            // 4. Calculate and Display Grand Total
+            // Calculate Totals
             document.getElementById('preview-subtotal').innerText = "₹" + formatMoney(totalItemsCost);
-            
             const grandTotal = totalItemsCost + chargeAmount;
             document.getElementById('preview-grand-total').innerText = "₹" + formatMoney(grandTotal);
 
-            // 5. Reveal the Preview and Export Buttons
+            // Reveal Preview
             document.getElementById('invoice-preview').classList.remove('hidden');
+            document.getElementById('export-controls').classList.remove('hidden');
             
-            const exportControls = document.getElementById('export-controls');
-            exportControls.classList.remove('hidden');
-            
-            // Smooth scroll to preview on mobile
             if(window.innerWidth < 1280) {
                 setTimeout(() => {
                     document.getElementById('invoice-preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -387,39 +369,73 @@
             }
         }
 
-        // Export setup with better scaling for higher quality
-        function downloadImage() {
+        // Helper function to prepare the canvas safely without clipping
+        async function getSafeCanvas() {
             const invoice = document.getElementById('invoice-preview');
-            // Hide box shadow just for the print to make it look like paper
-            invoice.classList.remove('shadow-2xl');
+            const tableContainer = invoice.querySelector('.overflow-x-auto');
             
-            html2canvas(invoice, { scale: 3, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = 'Invoice_' + document.getElementById('purchaser').value.replace(/\s+/g, '_') + '.png';
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                
-                // Restore shadow
-                invoice.classList.add('shadow-2xl');
+            // 1. Temporarily remove clipping classes before capture
+            invoice.classList.remove('shadow-2xl', 'overflow-hidden');
+            if (tableContainer) tableContainer.classList.remove('overflow-x-auto');
+
+            // 2. Generate Canvas with High Scale
+            const canvas = await html2canvas(invoice, { 
+                scale: 3, // High-res anti-blur
+                useCORS: true, 
+                backgroundColor: '#ffffff',
+                windowWidth: invoice.scrollWidth // Force full width capture
             });
+
+            // 3. Restore clipping classes after capture
+            invoice.classList.add('shadow-2xl', 'overflow-hidden');
+            if (tableContainer) tableContainer.classList.add('overflow-x-auto');
+
+            return canvas;
         }
 
-        function downloadPDF() {
-            const invoice = document.getElementById('invoice-preview');
-            invoice.classList.remove('shadow-2xl');
-            
-            html2canvas(invoice, { scale: 3, useCORS: true, backgroundColor: '#ffffff' }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                
-                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save('Invoice_' + document.getElementById('purchaser').value.replace(/\s+/g, '_') + '.pdf');
-                
-                invoice.classList.add('shadow-2xl');
-            });
+        // Fix: Image Export
+        async function downloadImage() {
+            const canvas = await getSafeCanvas();
+            const link = document.createElement('a');
+            const purchaser = document.getElementById('purchaser').value || 'Customer';
+            link.download = 'Invoice_' + purchaser.replace(/\s+/g, '_') + '.png';
+            link.href = canvas.toDataURL('image/png', 1.0); // 1.0 ensures max quality
+            link.click();
         }
-    </script>
+
+        // Fix: PDF Export with Margins
+        async function downloadPDF() {
+            const canvas = await getSafeCanvas();
+            const imgData = canvas.toDataURL('image/png', 1.0);
+            
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            // Add a 12mm safe margin around the document
+            const margin = 12; 
+            const printWidth = pdfWidth - (margin * 2);
+            const printHeight = (canvas.height * printWidth) / canvas.width;
+            
+            let heightLeft = printHeight;
+            let position = margin;
+
+            // First page
+            pdf.addImage(imgData, 'PNG', margin, position, printWidth, printHeight);
+            heightLeft -= (pdfHeight - (margin * 2));
+
+            // Automatically add new pages if the invoice is very long
+            while (heightLeft > 0) {
+                position = heightLeft - printHeight + margin;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', margin, position, printWidth, printHeight);
+                heightLeft -= pdfHeight;
+            }
+            
+            const purchaser = document.getElementById('purchaser').value || 'Customer';
+            pdf.save('Invoice_' + purchaser.replace(/\s+/g, '_') + '.pdf');
+        }
+                        </script>
+                    
 </body>
 </html>
